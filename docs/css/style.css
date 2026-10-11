@@ -1,0 +1,90 @@
+/* ==========================================================================
+   style.css — 部品のスタイル。値は theme.css の変数だけを使う(色や数値を直書きしない)。
+   セレクタは class 名ベース。JS が使う id には依存しません。
+   状態を表す class: .hidden(非表示) .is-over(ドロップ中) .is-indeterminate(進捗不明)
+   ========================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+.hidden { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height);
+}
+
+/* ---------- レイアウト ---------- */
+.page-header, .page-main, .page-footer { max-width: var(--content-max-width); margin: 0 auto; }
+.page-header { padding: var(--space-4) var(--space-5) var(--space-1); display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); align-items: flex-start; justify-content: space-between; }
+.page-title { margin: 0; font-size: var(--font-size-title); }
+.page-title__version { font-weight: normal; font-size: var(--font-size-small); color: var(--color-text-muted); }
+.page-lead { margin: 2px 0 0; color: var(--color-text-muted); font-size: var(--font-size-body); flex-basis: 100%; order: 3; }
+.page-main { padding: var(--space-3) var(--space-5) 40px; display: grid; gap: calc(var(--space-3) + 2px); }
+.page-footer { padding: 0 var(--space-5) 30px; font-size: var(--font-size-tiny); color: var(--color-text-muted); }
+
+.card { background: var(--color-surface); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-card); padding: var(--space-4); box-shadow: var(--shadow-card); }
+.card__title { margin: 0 0 var(--space-3); font-size: var(--font-size-heading); }
+.card__title--spaced { margin-top: var(--space-4); }
+.card__title small { font-weight: normal; }
+
+/* ---------- 文字 ---------- */
+.muted { color: var(--color-text-muted); }
+.status { font-size: var(--font-size-body); color: var(--color-text-muted); }
+.hint { font-size: var(--font-size-small); color: var(--color-text-muted); margin: var(--space-2) 0 0; }
+.error { color: var(--color-danger); font-weight: var(--font-weight-strong); white-space: pre-wrap; word-break: break-word; }
+.notice { background: var(--color-warn-bg); border-radius: var(--radius-input); padding: var(--space-2) var(--space-3); font-size: var(--font-size-small); margin: var(--space-2) 0; }
+.privacy { font-size: var(--font-size-small); color: var(--color-text-muted); background: var(--color-chip); border-radius: var(--radius-input); padding: var(--space-2) var(--space-3); }
+
+/* ---------- ボタン ---------- */
+.btn {
+  font: inherit; font-size: var(--font-size-body);
+  display: inline-block; padding: calc(var(--space-2) + 1px) var(--space-4);
+  border: var(--border-width) solid var(--color-border); border-radius: var(--radius-control);
+  background: var(--color-surface); color: var(--color-text);
+  cursor: pointer; text-decoration: none;
+}
+.btn--primary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent); font-weight: var(--font-weight-strong); }
+.btn--small { padding: 3px 10px; font-size: var(--font-size-small); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ---------- 1. 動画を選ぶ ---------- */
+.dropzone { border: var(--border-width-dashed) dashed var(--color-border); border-radius: var(--radius-card); padding: 28px var(--space-3); text-align: center; color: var(--color-text-muted); cursor: pointer; transition: var(--transition); }
+.dropzone strong { color: var(--color-text); }
+.dropzone.is-over { border-color: var(--color-accent); background: var(--color-chip); color: var(--color-text); }
+
+.stage { position: relative; display: inline-block; max-width: 100%; margin-top: var(--space-3); line-height: 0; border-radius: var(--radius-media); overflow: hidden; background: var(--color-media-bg); }
+.stage__video { display: block; max-width: 100%; max-height: var(--preview-max-height); height: auto; }
+.stage__overlay { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+
+/* ---------- 2. 設定 ---------- */
+.row { display: flex; flex-wrap: wrap; gap: var(--space-3) calc(var(--space-4) + 2px); align-items: center; margin: var(--space-2) 0; }
+.row label { font-size: var(--font-size-body); }
+.field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--space-3); align-items: start; }
+.field { display: grid; gap: var(--space-1); font-size: var(--font-size-body); }
+.field small { color: var(--color-text-muted); }
+.input { width: 100%; padding: var(--space-2); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-input); background: var(--color-bg); color: var(--color-text); font: inherit; }
+
+/* ---------- 3. 解析 ---------- */
+.bar { height: var(--progress-height); background: var(--color-chip); border-radius: var(--radius-pill); overflow: hidden; margin: var(--space-3) 0 6px; }
+.bar__fill { display: block; height: 100%; width: var(--progress, 0%); background: var(--color-accent); transition: width .2s; }
+.bar.is-indeterminate .bar__fill { width: 35%; animation: bar-slide 1.1s infinite ease-in-out; }
+@keyframes bar-slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+
+.live-canvas { display: block; width: 100%; max-height: var(--result-max-height); object-fit: contain; background: var(--color-media-bg); border-radius: var(--radius-media); margin-top: var(--space-2); }
+.log-toggle { cursor: pointer; color: var(--color-text-muted); font-size: var(--font-size-body); }
+.log { max-height: var(--log-max-height); overflow: auto; background: var(--color-chip); padding: var(--space-3) calc(var(--space-3) - 2px); border-radius: var(--radius-input); font-family: var(--font-family-mono); font-size: var(--font-size-tiny); white-space: pre-wrap; margin: var(--space-2) 0 0; }
+
+/* ---------- 結果 ---------- */
+.result-video { width: 100%; max-height: var(--result-max-height); background: var(--color-media-bg); border-radius: var(--radius-media); }
+.chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-3) 0; }
+.chip { background: var(--color-chip); border-radius: var(--radius-pill); padding: 3px var(--space-3); font-size: var(--font-size-small); }
+.move-list { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: 6px; }
+.move-list .btn { width: 100%; text-align: left; display: flex; gap: var(--space-3); }
+.move-time { font-variant-numeric: tabular-nums; color: var(--color-accent); font-weight: var(--font-weight-strong); min-width: 64px; }
+
+/* ---------- テーマ切り替え ---------- */
+.theme-switch { font-size: var(--font-size-small); color: var(--color-text-muted); display: flex; align-items: center; gap: var(--space-2); }
+.theme-switch .input { width: auto; padding: 3px var(--space-2); font-size: var(--font-size-small); }

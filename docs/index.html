@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ムーブ解析by武庫</title>
+<!-- 見た目の変更: css/theme.css(色・文字・角丸・余白の変数) / css/style.css(部品のスタイル) -->
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="page-header">
+  <h1 class="page-title">ムーブ解析by武庫 <small class="page-title__version" id="ver"></small></h1>
+  <label class="theme-switch">表示
+    <select id="theme" class="input" aria-label="表示テーマ">
+      <option value="auto">自動</option><option value="light">ライト</option><option value="dark">ダーク</option>
+    </select>
+  </label>
+  <p class="page-lead">クライミング動画から骨格・ホールドを検出し、ヒールフック／キョン／クロス／フラッギング／ダイアゴナルで自動停止する解析動画を作ります。</p>
+</header>
+<main class="page-main">
+  <div class="privacy">🔒 動画は<strong>あなたの端末のブラウザ内だけ</strong>で処理され、どこにも送信されません。</div>
+  <div id="notice" class="notice hidden"></div>
+
+  <section class="card">
+    <h2 class="card__title">1. 動画を選ぶ</h2>
+    <div id="drop" class="dropzone" tabindex="0" role="button" aria-label="動画ファイルを選択">
+      <strong>ここに動画をドラッグ＆ドロップ</strong><br>またはクリックして選択（mp4 / mov / webm など）
+    </div>
+    <input id="file" type="file" accept="video/*" class="hidden">
+    <div id="previewWrap" class="hidden">
+      <div class="status" id="fileName"></div>
+      <div id="roiBox">
+        <div class="stage"><video id="pv" class="stage__video" muted playsinline preload="auto"></video><canvas id="roi" class="stage__overlay"></canvas></div>
+        <p class="hint">（任意）最初に登る人を<strong>ドラッグで囲む</strong>と、その範囲から探して追跡します。背景に他の人が映るときに有効です。
+          <button id="roiClear" type="button" class="btn btn--small hidden">範囲をクリア</button></p>
+      </div>
+      <p id="noPreview" class="hint hidden">この動画はブラウザでプレビューできないため、解析もできない可能性があります。mp4(H.264) に変換してお試しください。</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card__title">2. 設定</h2>
+    <div class="row">
+      <label><input type="radio" name="mode" value="moves" checked> ムーブ検出＋停止</label>
+      <label><input type="radio" name="mode" value="holds"> ホールドのみ</label>
+    </div>
+    <div class="field-grid">
+      <label class="field">停止秒数<input id="pause" class="input" type="number" min="0" max="10" step="0.5" value="1.5"></label>
+      <label class="field">次の停止まで(秒)<input id="cooldown" class="input" type="number" min="0" max="60" step="0.5" value="2"></label>
+      <label class="field">赤丸の表示数<input id="maxHolds" class="input" type="number" min="0" max="50" step="1" value="5"><small>新しい順。0=無制限</small></label>
+      <label class="field">推定精度
+        <select id="complexity" class="input"><option value="0">0（高速・軽量）</option><option value="1">1（標準）</option><option value="2" selected>2（高精度・低速）</option></select>
+      </label>
+      <label class="field">出力の最大サイズ
+        <select id="maxSide" class="input"><option value="1920" selected>長辺 1920px（フルHD相当）</option><option value="1280">長辺 1280px</option><option value="960">長辺 960px（高速）</option><option value="4096">元のサイズ（重い）</option></select>
+      </label>
+      <label class="field">フレームレート<input id="fps" class="input" type="number" min="1" max="240" step="0.001" placeholder="自動"><small>空欄=自動検出</small></label>
+    </div>
+    <div class="row">
+      <label><input id="skeleton" type="checkbox" checked> 骨格線を描画する</label>
+      <label><input id="lock" type="checkbox" checked> 最初のクライマーに固定する</label>
+    </div>
+    <div class="row"><button id="start" class="btn btn--primary" disabled>解析開始</button></div>
+    <p class="hint">解析は端末の性能に依存します。長い動画や高解像度は時間とメモリを使うため、スマホでは短め・小さめの設定がおすすめです。解析中はこのタブを開いたままにしてください。</p>
+  </section>
+
+  <section class="card hidden" id="stepProgress">
+    <h2 class="card__title">3. 解析</h2>
+    <div class="status" id="status">準備中…</div>
+    <div class="bar" id="bar"><i class="bar__fill"></i></div>
+    <div class="row"><button id="cancel" type="button" class="btn">キャンセル</button></div>
+    <div id="errBox" class="error hidden"></div>
+    <canvas id="work" class="live-canvas" width="16" height="9"></canvas>
+    <details><summary class="log-toggle">ログ</summary><pre id="log" class="log"></pre></details>
+  </section>
+
+  <section class="card hidden" id="result">
+    <h2 class="card__title">解析結果</h2>
+    <video id="rv" class="result-video" controls playsinline preload="metadata"></video>
+    <div id="fmtNote" class="notice hidden"></div>
+    <div class="chips" id="chips"></div>
+    <div class="row">
+      <a id="dl" class="btn btn--primary" href="#">動画をダウンロード</a>
+      <button id="again" type="button" class="btn">別の動画を解析</button>
+    </div>
+    <h2 class="card__title card__title--spaced">検出したムーブ <small id="movesHint" class="muted">（クリックで該当位置へ）</small></h2>
+    <ul id="moves" class="move-list"></ul>
+  </section>
+</main>
+<footer class="page-footer" id="copy"></footer>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

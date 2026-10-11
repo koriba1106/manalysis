@@ -1,0 +1,95 @@
+/* ==========================================================================
+   theme.css — 見た目の設定(デザイントークン)
+   色・文字・角丸・余白・サイズはここだけで変えられます。style.css は変数だけを参照します。
+   ※ 解析結果の動画に焼き込まれる文字や赤丸の色は JS(render.js)側の設定で、CSS では変わりません。
+   ========================================================================== */
+
+:root {
+  /* ---- 色(ライト) ---- */
+  --color-bg: #f4f6f8;            /* ページ背景 */
+  --color-surface: #ffffff;       /* カード背景 */
+  --color-text: #1c2430;          /* 本文 */
+  --color-text-muted: #5b6675;    /* 補足文 */
+  --color-border: #dde2e8;        /* 枠線 */
+  --color-accent: #e8590c;        /* 強調色(主ボタン・進捗バー・時刻) */
+  --color-on-accent: #ffffff;     /* 強調色の上の文字 */
+  --color-danger: #c92a2a;        /* エラー */
+  --color-chip: #eef1f4;          /* チップ・入力欄・ログの背景 */
+  --color-warn-bg: #fff4e0;       /* 注意書きの背景 */
+  --color-media-bg: #000000;      /* 動画の背景(黒帯) */
+  --color-roi: #ff7a2f;           /* クライマー範囲指定の枠線 */
+  --color-roi-shade: rgba(0, 0, 0, 0.45); /* 範囲指定の外側の暗幕 */
+
+  /* ---- 文字 ---- */
+  --font-family: system-ui, -apple-system, "Hiragino Sans", "Yu Gothic UI", "Meiryo", "Noto Sans CJK JP", sans-serif;
+  --font-family-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-size-base: 16px;
+  --font-size-title: 22px;        /* ページ見出し */
+  --font-size-heading: 16px;      /* カード見出し */
+  --font-size-body: 14px;         /* 設定・状況表示 */
+  --font-size-small: 13px;        /* 補足文・チップ */
+  --font-size-tiny: 12px;         /* ログ・フッター */
+  --font-weight-strong: 600;
+  --line-height: 1.6;
+
+  /* ---- 形 ---- */
+  --radius-card: 12px;
+  --radius-control: 9px;          /* ボタン */
+  --radius-input: 8px;            /* 入力欄・注意書き */
+  --radius-media: 8px;            /* 動画・キャンバス */
+  --radius-pill: 99px;            /* チップ・進捗バー */
+  --border-width: 1px;
+  --border-width-dashed: 2px;     /* ドロップ領域 */
+  --shadow-card: none;            /* 例: 0 1px 3px rgba(0,0,0,.08) */
+
+  /* ---- 余白・大きさ ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --content-max-width: 900px;
+  --preview-max-height: 55vh;     /* 選択動画のプレビュー */
+  --result-max-height: 70vh;      /* 解析中・結果の動画 */
+  --log-max-height: 220px;
+  --progress-height: 12px;
+  --transition: 0.15s;
+}
+
+/* ---- ダーク(OS の設定に追従。手動で「ライト」を選んだときは適用しない) ---- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #12161b;
+    --color-surface: #1b2129;
+    --color-text: #e8ecf1;
+    --color-text-muted: #9aa6b4;
+    --color-border: #2c3541;
+    --color-accent: #ff7a2f;
+    --color-on-accent: #1a1206;
+    --color-chip: #262e38;
+    --color-warn-bg: #3a2d12;
+  }
+}
+/* ---- ダーク(手動で「ダーク」を選んだとき)。上のダークと同じ値にしてください ---- */
+:root[data-theme="dark"] {
+  --color-bg: #12161b;
+  --color-surface: #1b2129;
+  --color-text: #e8ecf1;
+  --color-text-muted: #9aa6b4;
+  --color-border: #2c3541;
+  --color-accent: #ff7a2f;
+  --color-on-accent: #1a1206;
+  --color-chip: #262e38;
+  --color-warn-bg: #3a2d12;
+}
+
+/* ---- 例: 緑のテーマに変える(コメントを外し、上の値を上書き) ----
+:root {
+  --color-accent: #2b8a3e;
+  --color-on-accent: #ffffff;
+  --color-roi: #2b8a3e;
+  --radius-card: 4px;
+  --radius-control: 4px;
+  --font-size-base: 17px;
+}
+*/
