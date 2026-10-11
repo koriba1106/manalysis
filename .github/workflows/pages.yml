@@ -1,0 +1,47 @@
+name: deploy-pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - run: npm test
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      # 骨格推定モデル(Apache-2.0)をサイトに同梱し、利用者の初回読み込みを自サイト内で完結させる。
+      # 取得に失敗した場合は同梱せず、ブラウザ側が Google の配布URLから読み込む。
+      - name: 骨格推定モデルを同梱
+        run: |
+          mkdir -p docs/models
+          for n in lite full heavy; do
+            f="docs/models/pose_landmarker_${n}.task"
+            curl -fsSL --retry 3 -o "$f" "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${n}/float16/latest/pose_landmarker_${n}.task" || true
+            if [ ! -s "$f" ]; then rm -f "$f"; echo "skip: $n"; fi
+          done
+          ls -la docs/models
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deployment
+        uses: actions/deploy-pages@v4
