@@ -1,47 +1,110 @@
+
 name: deploy-pages
+
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
+
 permissions:
   contents: read
-  pages: write
-  id-token: write
+
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: github-pages
+  cancel-in-progress: false
+
 jobs:
   test:
+    name: Test application
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
-      - run: npm test
+          cache: npm
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Run tests
+        run: npm test
+
   deploy:
+    name: Deploy to GitHub Pages
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
-      - uses: actions/checkout@v4
-      # 骨格推定モデル(Apache-2.0)をサイトに同梱し、利用者の初回読み込みを自サイト内で完結させる。
-      # 取得に失敗した場合は同梱せず、ブラウザ側が Google の配布URLから読み込む。
-      - name: 骨格推定モデルを同梱
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download MediaPipe pose models
+        shell: bash
         run: |
+          set -eu
+
           mkdir -p docs/models
-          for n in lite full heavy; do
-            f="docs/models/pose_landmarker_${n}.task"
-            curl -fsSL --retry 3 -o "$f" "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${n}/float16/latest/pose_landmarker_${n}.task" || true
-            if [ ! -s "$f" ]; then rm -f "$f"; echo "skip: $n"; fi
+
+          for model in lite full heavy; do
+            file="docs/models/pose_landmarker_${model}.task"
+            temp="${file}.tmp"
+
+            url="https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${model}/float16/latest/pose_landmarker_${model}.task"
+
+            rm -f "$temp"
+
+            if curl \
+              --fail \
+              --silent \
+              --show-error \
+              --location \
+              --retry 3 \
+              --connect-timeout 15 \
+              --max-time 180 \
+              --output "$temp" \
+              "$url" \
+              && test -s "$temp"; then
+
+              mv "$temp" "$file"
+              echo "Model downloaded: ${model}"
+
+            else
+              rm -f "$temp" "$file"
+              echo "Model unavailable: ${model}"
+              echo "The application must use its verified fallback."
+            fi
           done
-          ls -la docs/models
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+
+          echo "Available model files:"
+          find docs/models -maxdepth 1 -type f -name '*.task' -printf '%f %s bytes\n'
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
           path: docs
-      - id: deployment
+
+      - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
