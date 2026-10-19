@@ -24,10 +24,15 @@ async function pickConfig(width, height, fps, bitrate) {
   return null;
 }
 
+/** 出力ビットレート(bps)。出力サイズの事前見積もりにも使う */
+export function estimateBitrate(width, height, fps) {
+  return Math.round(Math.min(40e6, Math.max(2e6, width * height * fps * 0.12)));
+}
+
 const sleep0 = () => new Promise((r) => setTimeout(r, 0));
 
 export async function createVideoEncoder({ width, height, fps }) {
-  const bitrate = Math.round(Math.min(40e6, Math.max(2e6, width * height * fps * 0.12)));
+  const bitrate = estimateBitrate(width, height, fps);
   const pick = await pickConfig(width, height, fps, bitrate);
   if (!pick) throw new Error("このブラウザは動画のエンコード(WebCodecs)に対応していません。PC版の Chrome / Edge / Safari 16.4 以降をお使いください。");
   const mp4 = pick.container === "mp4";

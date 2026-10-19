@@ -7,7 +7,13 @@
       29:[-.5,-2.1],30:[.5,-2.1],31:[-.5,-2.2],32:[.5,-2.2]}); return p; };
   const w = (o) => Object.assign(base(), o);
   const NEUTRAL = base(), HEEL_R = w({26:[.9,-.8],28:[1.7,-.4],30:[1.75,-.05]}), DROP_R = w({26:[.3,-1],28:[1,-1.2],30:[1.05,-1.3]}), CROSS_R = w({16:[-.9,2.6],15:[.9,2.6]});
-  const script = (i) => i>=60&&i<100 ? HEEL_R : i>=130&&i<190 ? DROP_R : i>=200&&i<240 ? CROSS_R : NEUTRAL;
+  // カウンターバランス: 右手を高く・左足を横へ(修正前はフラッギングと誤判定された姿勢)
+  const COUNTER_R = w({16:[.9,3.0],15:[-.6,1.8],25:[-1.7,-.7],27:[-2.9,-1.4],29:[-2.95,-1.5]});
+  // 弱いフラッギング: 足の横への出が 2.0(従来の標準は 2.2 以上が必要)。実際の動画で多い「条件のすぐ手前」の姿勢
+  const WEAK_FLAG_L = w({25:[-1.2,-.7],27:[-2.0,-1.6],29:[-2.05,-1.7]});
+  const script = (i) => window.MUKO_SCENARIO === "weak" ? (i>=60&&i<130 ? WEAK_FLAG_L : NEUTRAL)
+    : window.MUKO_SCENARIO === "counter" ? (i>=60&&i<110 ? COUNTER_R : NEUTRAL)
+    : i>=60&&i<100 ? HEEL_R : i>=130&&i<190 ? DROP_R : i>=200&&i<240 ? CROSS_R : NEUTRAL;
   window.MUKO_POSE_FACTORY = async () => {
     if (window.MUKO_FAIL) throw new Error("骨格推定モデルを読み込めませんでした。(テスト用の失敗)");
     return {

@@ -15,6 +15,15 @@ subprocess.run([sys.executable, os.path.join(ROOT, "tests", "browser", "make_tes
 srv = subprocess.Popen([sys.executable, "-m", "http.server", "8772", "--bind", "127.0.0.1", "-d",
                         os.path.join(ROOT, "docs")], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 time.sleep(1.5)
+def waitjs(pg, expr, timeout=60):
+    """CSP(unsafe-eval 禁止)の下でも動く待機: page.wait_for_function は内部で eval するため使えない。"""
+    end = time.time() + timeout
+    while time.time() < end:
+        if pg.evaluate(expr):
+            return
+        time.sleep(0.2)
+    raise TimeoutError(expr)
+
 fake = open(os.path.join(ROOT, "tests", "browser", "fakepose_factory.js"), encoding="utf-8").read()
 
 with sync_playwright() as p:
@@ -59,9 +68,9 @@ with sync_playwright() as p:
     pg.click("#again"); pg.wait_for_timeout(300)
     print("result hidden after again:", pg.is_hidden("#result"), "| start enabled:", pg.is_enabled("#start"))
     pg.click("#start")
-    pg.wait_for_function("document.getElementById('status').textContent.includes('解析中')", timeout=30000)
+    waitjs(pg, "document.getElementById('status').textContent.includes('解析中')", 30)
     pg.click("#cancel")
-    pg.wait_for_function("document.getElementById('status').textContent.includes('キャンセルしました')", timeout=30000)
+    waitjs(pg, "document.getElementById('status').textContent.includes('キャンセルしました')", 30)
     print("cancel:", pg.inner_text("#status"), "| result hidden:", pg.is_hidden("#result"), "| start enabled:", pg.is_enabled("#start"))
 
     # 不正な設定 → エラー表示 / モデル読み込み失敗 → エラー表示
@@ -71,7 +80,7 @@ with sync_playwright() as p:
     pg.fill("#pause", "1"); pg.evaluate("window.MUKO_FAIL = true")
     pg.select_option("#complexity", "0")
     pg.click("#start")
-    pg.wait_for_function("document.getElementById('errBox').textContent.includes('モデル')", timeout=30000)
+    waitjs(pg, "document.getElementById('errBox').textContent.includes('モデル')", 30)
     print("model failure error:", pg.inner_text("#errBox"), "| start enabled:", pg.is_enabled("#start"))
     print("page errors:", [e for e in errs if "Failed to load resource" not in e])
     b.close()

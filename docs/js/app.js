@@ -1,9 +1,14 @@
 /** 画面(ブラウザ完結)。動画はサーバに送信されず、この端末内だけで処理される。 */
-import { MODE, VERSION, makeConfig } from "./core.js";
+import { CHECK_INFO, MODE, VERSION, makeConfig, profileOverrides } from "./core.js";
 import { CancelError, analyzeVideo } from "./analyzer.js";
 import { webCodecsSupported } from "./encoder.js";
 import { createPoseBackend } from "./pose.js";
 
+// 他サイトの <iframe> に埋め込まれて操作を横取りされないよう、埋め込み表示では動作しない
+if (window.top !== window.self) {
+  document.body.textContent = "このページは他のサイトに埋め込んで表示できません。直接開いてください。";
+  throw new Error("framed");
+}
 const $ = (id) => document.getElementById(id);
 const COPYRIGHT = "©武庫労山　本ソフトウェアは、個人利用・商用利用を問わず、どなたでも無料でご利用いただけます。本ソフトウェアの使用、または使用不能によって生じたいかなる損害（データの損失、PCの不具合、業務の中断など）に関しても、制作者・著作者は一切の責任を負いません。すべて利用者の自己責任においてご利用ください。";
 $("ver").textContent = `Web版 v${VERSION}`;
@@ -11,7 +16,9 @@ $("copy").textContent = COPYRIGHT;
 
 let file = null, objUrl = null, roi = null, running = false, cancel = null, resultUrl = null;
 let pose = null, poseComplexity = -1, wakeLock = null;
-const poseFactory = () => window.MUKO_POSE_FACTORY || createPoseBackend;   // テスト用に差し替え可能
+// 自動テスト用の骨格推定の差し替えフック。公開サイト上では無効(localhost / 127.0.0.1 のときだけ)
+const IS_LOCAL = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+const poseFactory = () => (IS_LOCAL && window.MUKO_POSE_FACTORY) || createPoseBackend;
 
 /* ---------- 対応状況 ---------- */
 if (!webCodecsSupported()) {
@@ -141,6 +148,9 @@ async function start() {
       pause_duration_sec: num("pause", 1.5), pause_cooldown_sec: num("cooldown", 2),
       max_holds: Math.trunc(num("maxHolds", 5)), model_complexity: Math.trunc(num("complexity", 2)),
       draw_skeleton: $("skeleton").checked, lock_climber: $("lock").checked, initial_roi: roi,
+      // ムーブ判定の感度(しきい値・信頼度・揺らぎへの強さ)。カウンターバランスの区別を切ると従来どおりフラッギング側で判定
+      ...profileOverrides($("sens").value, { counter: $("counter").checked }),
+      diagnostics: true,
     });
   } catch (e) { fail(e.message); return; }
 
@@ -158,7 +168,7 @@ async function start() {
     setStatus("解析を開始しています…", null);
     const r = await analyzeVideo({
       file, cfg, pose: p, canvas: $("work"), cancel,
-      maxSide: Number($("maxSide").value), fps: num("fps", 0),
+      maxSide: Number($("maxSide").value), poseMaxSide: Number($("poseSize").value), fps: num("fps", 0),
       onProgress: (d, t) => setStatus(`解析中… ${d}/${t} フレーム（${Math.round((100 * d) / t)}%）`, (100 * d) / t),
       onLog: log,
     });
@@ -182,6 +192,68 @@ $("again").addEventListener("click", () => {
   if (resultUrl) { URL.revokeObjectURL(resultUrl); resultUrl = null; }
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
+
+/* ---------- 判定の診断 ---------- */
+const fmt = (x) => (Math.abs(x) >= 10 ? x.toFixed(0) : x.toFixed(2));
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+function tdOf(text, cls) { return el("td", cls, text); }
+
+function renderDiagnostics(d, sens) {
+  const box = $("diag"); box.textContent = "";
+  const p = d.pipeline || {};
+  box.append(el("p", "", `骨格が使えたフレーム ${d.posePct}%(${d.poseFrames}/${d.frames}) ／ そのうち体幹(両肩・両腰)が見えた ${d.torsoPct}% ／ 左右の軸が使えた ${d.lateralPct}%`));
+  box.append(el("p", "diag__sub", `使えなかった理由: モデルが検出なし ${p.modelNull ?? 0} ／ 胴体の信頼度や大きさが不足 ${p.torsoWeak ?? 0} ／ 別人として除外 ${p.lockRejected ?? 0}(フレーム)`));
+
+  // 助言
+  const adv = [];
+  if (d.posePct < 70) adv.push(`骨格が安定して検出できていません(${d.posePct}%)。「推定精度」を上げる、「推論の画像サイズ」を大きくする、クライマーを大きく写す(ズーム・近づく)、明るい場所で撮る、のいずれかをお試しください。`);
+  else if (d.torsoPct < 80) adv.push(`両肩・両腰が見えているフレームが少ないです(${d.torsoPct}%)。壁や他の人で体が隠れている、または体が小さく写っている可能性があります。`);
+  if (d.lateralPct < 50 && d.torsoFrames > 0) adv.push(`横向き・ねじりのフレームが多く(左右の軸が使えたのは ${d.lateralPct}%)、キョン・クロス・ダイアゴナルは評価できないフレームが多くなります。正面か真後ろから撮ると判定されやすくなります。`);
+  const lowJoints = d.joints.filter((j) => j.pct < 60).map((j) => `${j.name}(${j.pct}%)`);
+  if (lowJoints.length) adv.push(`見えている割合が低い関節: ${lowJoints.join("、")}。これらを使うムーブは判定されにくくなります。`);
+  const anyPassed = d.rules.some((r) => r.passed > 0);
+  // 成立まで惜しかったもの(あと1条件を優先、次にあと2条件)。同じムーブは1回だけ、上位3つ
+  const cand = d.rules.flatMap((r) => [
+    ...r.nearMisses.map((m) => ({ rule: r.name, cond: 1, ...m })),
+    ...r.near2Misses.map((m) => ({ rule: r.name, cond: 2, ...m })),
+  ]).sort((x, y) => y.n - x.n || x.cond - y.cond);
+  const seen = new Set(), top = [];
+  for (const c of cand) { if (!seen.has(c.rule)) { seen.add(c.rule); top.push(c); } if (top.length === 3) break; }
+  if (!anyPassed && top.length) {
+    const desc = top.map((t) => `「${t.rule}」(あと${t.cond}条件: ${(CHECK_INFO[t.key] || { label: t.key }).label}、${t.n}フレーム)`).join("、");
+    adv.push(`成立まで惜しかったのは ${desc} です。` +
+      (sens === "standard" ? "感度を「ゆるめ」にすると出やすくなります。" : sens === "relaxed" ? "「かなりゆるめ」にすると出やすくなりますが、誤検出も増えます。" : "それでも出ない場合は、動画の写り方(上の項目)をご確認ください。"));
+  }
+  if (adv.length) { const ul = el("ul", "diag__advice"); for (const t of adv) ul.append(el("li", "", t)); box.append(ul); }
+
+  // 関節ごとの可視率
+  const chips = el("div", "chips");
+  for (const j of d.joints) chips.append(el("span", "chip", `${j.name} ${j.pct}%`));
+  box.append(el("p", "diag__sub", "関節ごとに見えていた割合(信頼度が下限以上)"), chips);
+
+  // ムーブごとの判定状況
+  const wrap = el("div", "diag__scroll"), table = el("table", "diag__table");
+  const head = el("tr"); for (const t of ["ムーブ", "判定できた", "成立", "評価できなかった(見えない / 横向き)", "あと1条件で成立していたもの(多い順)"]) head.append(el("th", "", t));
+  table.append(head);
+  for (const r of d.rules) {
+    if (r.evaluated === 0 && r.skipVisibility === 0 && r.skipLateral === 0) continue;
+    const tr = el("tr");
+    tr.append(tdOf(r.name), tdOf(String(r.evaluated), "diag__num"), tdOf(String(r.passed), r.passed > 0 ? "diag__num diag__ok" : "diag__num"),
+      tdOf(`${r.skipVisibility} / ${r.skipLateral}`, "diag__num diag__sub"));
+    const td = el("td");
+    const list = r.nearMisses.length ? r.nearMisses : r.near2Misses;
+    if (r.nearMisses.length === 0 && r.near2Misses.length) td.append(el("div", "diag__sub", "あと2条件でした:"));
+    if (r.passed > 0 && list.length === 0) td.textContent = "—";
+    for (const m of list) {
+      const info = CHECK_INFO[m.key] || { label: m.key, unit: "" };
+      const gap = m.medianMargin === null ? "" : `(不足の中央値 ${fmt(-m.medianMargin)}${info.unit})`;
+      td.append(el("div", "", `${info.label}: ${m.n}フレーム${gap}`));
+    }
+    tr.append(td); table.append(tr);
+  }
+  wrap.append(table); box.append(wrap);
+  $("diagBox").classList.remove("hidden");
+}
 
 /* ---------- 結果 ---------- */
 function showResult({ blob, ext, events, result: r }) {
@@ -218,6 +290,7 @@ function showResult({ blob, ext, events, result: r }) {
     b.addEventListener("click", () => { rv.currentTime = Math.max(0, e.t_out); rv.play().catch(() => {}); rv.scrollIntoView({ behavior: "smooth", block: "center" }); });
     li.append(b); ul.append(li);
   }
+  if (r.diagnostics) renderDiagnostics(r.diagnostics, $("sens").value); else $("diagBox").classList.add("hidden");
   $("result").classList.remove("hidden");
   $("result").scrollIntoView({ behavior: "smooth", block: "start" });
 }

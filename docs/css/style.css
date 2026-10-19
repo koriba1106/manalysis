@@ -88,3 +88,16 @@ body {
 /* ---------- テーマ切り替え ---------- */
 .theme-switch { font-size: var(--font-size-small); color: var(--color-text-muted); display: flex; align-items: center; gap: var(--space-2); }
 .theme-switch .input { width: auto; padding: 3px var(--space-2); font-size: var(--font-size-small); }
+
+/* ---------- 判定の診断 ---------- */
+.diag { margin-top: var(--space-4); }
+.diag__body { margin-top: var(--space-2); font-size: var(--font-size-body); }
+.diag__advice { margin: var(--space-2) 0; padding-left: 1.4em; }
+.diag__advice li { margin: var(--space-1) 0; }
+.diag__scroll { overflow-x: auto; margin-top: var(--space-2); }
+.diag__table { border-collapse: collapse; width: 100%; font-size: var(--font-size-small); }
+.diag__table th, .diag__table td { text-align: left; padding: 6px var(--space-2); border-bottom: var(--border-width) solid var(--color-border); vertical-align: top; }
+.diag__table th { color: var(--color-text-muted); font-weight: normal; white-space: nowrap; }
+.diag__num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.diag__ok { color: var(--color-accent); font-weight: var(--font-weight-strong); }
+.diag__sub { color: var(--color-text-muted); }

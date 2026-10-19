@@ -71,8 +71,11 @@ CROSS_R = with_(r_wrist=(-0.9, 2.6), l_wrist=(0.9, 2.6))
 FLAG_R = with_(r_knee=(1.75, -0.85), r_ankle=(3.0, -1.7), r_heel=(3.05, -1.8))
 DIAG_R = with_(r_wrist=(0.6, 3.2), l_wrist=(-0.3, 1.5), l_knee=(-1.15, -1.4), l_ankle=(-1.8, -2.8),
                l_heel=(-1.85, -2.9))
+# カウンターバランス: 右手を高く伸ばし、左足を横へ出す(足は腰よりやや下)。修正前はフラッギングと誤判定されていた
+COUNTER_R = with_(r_wrist=(0.9, 3.0), l_wrist=(-0.6, 1.8), l_knee=(-1.7, -0.7), l_ankle=(-2.9, -1.4),
+                  l_heel=(-2.95, -1.5))
 POSES = [base_pose(), HEEL_R, mirror(HEEL_R), DROP_R, mirror(DROP_R), CROSS_R, mirror(CROSS_R),
-         FLAG_R, mirror(FLAG_R), DIAG_R, mirror(DIAG_R)]
+         FLAG_R, mirror(FLAG_R), DIAG_R, mirror(DIAG_R), COUNTER_R, mirror(COUNTER_R)]
 
 
 def to_px(rel, cx, cy, unit, theta, flip):
@@ -126,10 +129,13 @@ def gen_detector(n=1800, seed=1):
             rec["anchor"] = None if d.anchor is None else d.anchor.tolist()
             rec["label"], rec["label_en"] = d.label, d.label_en
             counts[d.move.name] = counts.get(d.move.name, 0) + 1
+            if d.label == "カウンター":
+                counts["_COUNTER_RELAXED"] = counts.get("_COUNTER_RELAXED", 0) + 1
         cases.append(rec)
     print("detector coverage:", counts)
     for m in ("HEEL_HOOK_R", "HEEL_HOOK_L", "DROP_KNEE_R", "DROP_KNEE_L", "CROSS_R_OVER_L",
-              "CROSS_L_OVER_R", "FLAG_R", "FLAG_L", "DIAGONAL_R", "DIAGONAL_L", "NORMAL"):
+              "CROSS_L_OVER_R", "FLAG_R", "FLAG_L", "DIAGONAL_R", "DIAGONAL_L", "NORMAL",
+              "_COUNTER_RELAXED"):
         assert counts.get(m, 0) >= 15, f"coverage too low: {m} {counts.get(m, 0)}"
     dump("detector.json", cases)
 

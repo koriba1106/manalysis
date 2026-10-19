@@ -10,6 +10,15 @@ srv = subprocess.Popen([sys.executable, "-m", "http.server", "8774", "--bind", "
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 time.sleep(1.5)
 fake = open(os.path.join(ROOT, "tests", "browser", "fakepose_factory.js"), encoding="utf-8").read()
+def waitjs(pg, expr, timeout=60):
+    """CSP(unsafe-eval 禁止)の下でも動く待機: page.wait_for_function は内部で eval するため使えない。"""
+    end = time.time() + timeout
+    while time.time() < end:
+        if pg.evaluate(expr):
+            return
+        time.sleep(0.2)
+    raise TimeoutError(expr)
+
 CS = "([sel, prop]) => getComputedStyle(document.querySelector(sel))[prop]"
 
 with sync_playwright() as p:
@@ -38,7 +47,10 @@ with sync_playwright() as p:
     pg.select_option("#theme", "auto")
 
     # theme.css の変数を上書き → 見た目が変わる(緑テーマの例)
-    pg.add_style_tag(content=":root{--color-accent:#2b8a3e;--color-on-accent:#fff;--color-roi:#00aa00;--radius-card:2px;--font-size-title:30px;--progress-height:24px}")
+    # CSP で <style> の注入は禁止されているため、CSSOM でルートの変数を上書き(theme.css を書き換えるのと同じ効果)
+    for k, v in {"--color-accent": "#2b8a3e", "--color-on-accent": "#fff", "--color-roi": "#00aa00", "--radius-card": "2px",
+                 "--font-size-title": "30px", "--progress-height": "24px"}.items():
+        pg.evaluate("([k, v]) => document.documentElement.style.setProperty(k, v)", [k, v])
     print("override: primary btn bg:", pg.evaluate(CS, ["#start", "backgroundColor"]),
           "| card radius:", pg.evaluate(CS, [".card", "borderTopLeftRadius"]),
           "| title size:", pg.evaluate(CS, [".page-title", "fontSize"]),
@@ -55,7 +67,7 @@ with sync_playwright() as p:
     print("ROI frame pixel (expect green-ish 0,170,0):", px[:4], px[4:8])
     pg.screenshot(path="/tmp/theme_green_top.png")
     pg.click("#start")
-    pg.wait_for_function("document.getElementById('status').textContent.includes('解析中')", timeout=60000)
+    waitjs(pg, "document.getElementById('status').textContent.includes('解析中')", 60)
     pg.wait_for_timeout(1500)
     prog = pg.evaluate("document.getElementById('bar').style.getPropertyValue('--progress')")
     w = pg.evaluate("getComputedStyle(document.querySelector('.bar__fill')).width"), pg.evaluate("document.getElementById('bar').clientWidth")

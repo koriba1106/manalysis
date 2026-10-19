@@ -90,6 +90,15 @@ class MoveThresholds:
     diag_min_span: float = 1.7           # v2.8: 少しだけ緩和
     diag_other_wrist_drop: float = 1.2   # v2.8: 少しだけ緩和
     diag_leg_min_angle: float = 135.0    # v2.8: 少しだけ緩和
+    # --- カウンターバランス(v3.1): ダイアゴナルの緩和版。片手を高く伸ばし、逆側の足を横へ出して体を預ける姿勢。
+    #     足が腰よりそれほど低くなくても成立させ、フラッギングへ誤判定されるのを防ぐ。
+    #     counter_wrist_min_y を inf にすると無効(= v3.0 までの挙動)
+    counter_wrist_min_y: float = 2.0
+    counter_ankle_max_y: float = -1.0
+    counter_min_span: float = 1.5
+    counter_other_wrist_drop: float = 0.6
+    counter_foot_lateral: float = 1.2    # 足首が体の中心から逆側へこれ以上離れている
+    counter_leg_min_angle: float = 140.0
 
 
 @dataclass
@@ -330,8 +339,8 @@ class MoveType(Enum):
     CROSS_L_OVER_R = ("左手クロス", "Cross (L > R)")
     FLAG_R = ("右フラッギング", "Flagging (R)")
     FLAG_L = ("左フラッギング", "Flagging (L)")
-    DIAGONAL_R = ("右手ダイアゴナル", "Diagonal (R hand/L foot)")
-    DIAGONAL_L = ("左手ダイアゴナル", "Diagonal (L hand/R foot)")
+    DIAGONAL_R = ("右手ダイアゴナル(カウンターバランス)", "Diagonal / Counterbalance (R hand)")
+    DIAGONAL_L = ("左手ダイアゴナル(カウンターバランス)", "Diagonal / Counterbalance (L hand)")
 
     def __init__(self, jp_name: str, en_name: str):
         self.jp_name = jp_name
@@ -467,6 +476,20 @@ class MoveDetector:
                             and (wx - ax) * dr >= th.diag_min_span
                             and rel[f"{other}_wrist"][1] <= wy - th.diag_other_wrist_drop):
                         return Detection(mv, pts[f"{hand}_wrist"], jp, en, (255, 160, 0))
+
+            # カウンターバランス: ダイアゴナルの緩和版。フラッギングより先に評価し、誤判定を防ぐ
+            for hand, foot, mv, dr in (("r", "l", MoveType.DIAGONAL_R, 1.0),
+                                       ("l", "r", MoveType.DIAGONAL_L, -1.0)):
+                other = "l" if hand == "r" else "r"
+                if foot in leg and ok(f"{hand}_wrist", f"{other}_wrist", f"{foot}_ankle"):
+                    wx, wy = rel[f"{hand}_wrist"]
+                    ax, ay = rel[f"{foot}_ankle"]
+                    if (wy >= th.counter_wrist_min_y and ay <= th.counter_ankle_max_y
+                            and leg[foot] >= th.counter_leg_min_angle
+                            and (wx - ax) * dr >= th.counter_min_span
+                            and -ax * dr >= th.counter_foot_lateral
+                            and rel[f"{other}_wrist"][1] <= wy - th.counter_other_wrist_drop):
+                        return Detection(mv, pts[f"{hand}_wrist"], "カウンター", "Counter", (255, 160, 0))
 
             for s, mv, jp, en in (("r", MoveType.FLAG_R, "右フラッグ", "R Flag"),
                                   ("l", MoveType.FLAG_L, "左フラッグ", "L Flag")):

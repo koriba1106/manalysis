@@ -37,9 +37,9 @@ test("検出器: 体幹座標系とムーブ判定が全ケースで一致", () 
     if (c.anchor === null) assert.equal(d.anchor, null);
     else assert.ok(arrNear(d.anchor, c.anchor, 1e-9));
     assert.equal(d.label, c.label); assert.equal(d.labelEn, c.label_en);
-    seen.add(d.move.id); n += 1;
+    seen.add(d.move.id); if (d.label === "カウンター") seen.add("_counter"); n += 1;
   }
-  assert.equal(seen.size, 11, `全ムーブを網羅していること: ${[...seen]}`);
+  assert.equal(seen.size, 12, `全ムーブ+カウンター(緩和)を網羅していること: ${[...seen]}`);
 });
 
 test("フレーム列: Tracker が実エンジンの _analyze_frame と全フレーム一致(ホールド・EMA・安定化・クールダウン)", () => {
